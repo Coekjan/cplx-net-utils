@@ -286,11 +286,11 @@ def subm(pool, write_file=True):
         # print(t.read_eager())
         t.write(b'subm' * 3)
         ts = time.time()
-        out = t.read_until(b'subm', timeout=10)
+        out = t.read_until(b'subm', timeout=20)
         if write_file:
             with open(f'outs/as{asn}/' + name + '.out', 'wb') as fp:
                 fp.write(out)
-        if time.time() - ts >= 9:
+        if time.time() - ts >= 25:
             t.close()
             raise RuntimeError(f'{name} (:{port}) timed out')
         t.write(b'\b' * 15)
