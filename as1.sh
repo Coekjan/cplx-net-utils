@@ -29,3 +29,17 @@ ospf-rtbr 1,2,3,4,5 ^@.0.0.0/16
 mpls-rtrr 1,2 g0/0/1 g4/0/1 g4/0/2 g4/0/3
 mpls-rtbr 1,2  # todo
 mpls-rtbr 3,4,5 g4/0/0 g4/0/1
+
+# bgp
+
+bgp-rtrr 1,2 br=1,2,3,4,5 ex=2{rtrr1,rtrr2}:3{rtrr1,rtrr2}
+
+bgp-rtbr 1,2,3,4,5 rr=1,2
+bgp-rtbr 1 ex=2{@.0.0.254}
+bgp-rtbr 2 ex=2{@.0.0.250}
+bgp-rtbr 3 ex=2{@.0.0.246}
+bgp-rtbr 4 ex=2{@.0.0.242}
+bgp-rtbr 5 ex=2{@.0.0.238}
+
+bgp-rtrr-done 1,2
+bgp-rtbr-done 1,2,3,4,5

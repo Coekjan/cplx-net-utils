@@ -46,3 +46,18 @@ ospf-rtpe 1,2,3,4 ^172.0.0.0/8
 mpls-rtrr 1,2 g0/0/0 g0/0/1 g0/0/2 g4/0/0 g4/0/1 g4/0/2
 mpls-rtbr 1,2,3 g0/0/1 g0/0/2
 mpls-rtpe 1,2,3,4 g0/0/0 g4/0/0
+
+# bgp
+
+bgp-rtrr 1,2 pe=1,2,3,4 br=1,2,3 ex=1{rtrr1,rtrr2}
+
+bgp-rtbr 1,2,3 rr=1,2
+bgp-rtbr 1 ex=1{@.0.0.245}
+bgp-rtbr 2 ex=1{@.0.0.241}
+bgp-rtbr 3 ex=1{@.0.0.237}
+
+bgp-rtpe 1,2,3,4 rr=1,2
+
+bgp-rtrr-done 1,2
+bgp-rtbr-done 1,2,3
+bgp-rtpe-done 1,2,3,4

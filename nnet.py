@@ -1,8 +1,9 @@
 import concurrent.futures
 import ipaddress
+import re
 import sys
 import time
-from ipaddress import ip_address, ip_network
+from ipaddress import ip_network
 from telnetlib import Telnet
 
 from pysh import main
@@ -16,6 +17,7 @@ buf = []
 dev_name: str | None = None
 dev_nets = []
 ospf_depth = 0
+bgp_peers: set[str] = set()
 mypre = '186'
 telnet_port = None
 dev_open_mode = 'w'
@@ -26,8 +28,13 @@ dev_addrs = set()
 dev_ctxs = {}
 
 
-def parse_id(dev_name) -> str:
+def parse_id(dev_name, /, asno=None) -> str:
+    if asno is None:
+        asno = asn
     sub_id = dev_name[-1]  # XXX: only support 0-9
+    is_rt = dev_name.startswith('rt')
+    if not is_rt:
+        assert dev_name.startswith('ls')
     if is_rt:
         if 'ce' in dev_name:
             id = 0
@@ -38,14 +45,21 @@ def parse_id(dev_name) -> str:
         elif 'br' in dev_name:
             id = 3
         else:
-            raise NotImplementedError()
-        return f'{asn}.0.{id}.{sub_id}'
+            raise NotImplementedError(dev_name)
+        return f'{asno}.0.{id}.{sub_id}'
     else:
-        return f'{asn}.1.0.{sub_id}'
+        return f'{asno}.1.0.{sub_id}'
 
 
 def parse_cidr(cidr: str) -> str:
     return cidr.replace('@', mypre)
+
+
+def parse_id_or_cidr(any: str, *args, **kwargs) -> str:
+    try:
+        return parse_id(any, *args, **kwargs)
+    except (AssertionError, NotImplementedError):
+        return parse_cidr(any)
 
 
 def parse_net(cidr: str):
@@ -141,7 +155,7 @@ def ints(*cidrs):
         push('quit')
 
         vlan_id += 1
-    
+
     id = parse_id(dev_name)
     push('int loopback 1', f'ip addr {id} 32', 'quit')
 
@@ -189,6 +203,7 @@ def basic_conf(*cidrs):
     ints(*cidrs)
     push('undo ospf 1', 'y')
     push('undo mpls', 'y')
+    push('undo bgp', 'y')
 
 
 def ospf_rtrr(nos, *cidrs):
@@ -223,7 +238,7 @@ def ospf(*cidrs):
         ip = str(n.network_address)
         mask = str(n.hostmask)
         push(f'network {ip} {mask}')
-    
+
     id = parse_id(dev_name)
     push(f'network {id} 0.0.0.0')
 
@@ -250,14 +265,225 @@ def mpls_rtpe(nos, *ints):
 
 def mpls(*ints):
     id = parse_id(dev_name)
-    
+
     push(f'mpls lsr-id {id}')
     push('mpls', 'lsp-trigger all', 'mpls ldp', 'q')
 
     for int in ints:
         push(f'int {int}', 'mpls', 'mpls ldp', 'q')
-    
+
     push('quit', 'reset mpls ldp all', 'sys')
+
+
+def bgp_rtrr(nos, *cmds):
+    bgp_no = f'{asn * 100}'
+    for no in nos.split(','):
+        cdev_rtrr(no)
+        bgp_peers.add(f'rtrr{no}')
+        push(f'bgp {bgp_no}')
+        for cmd in cmds:
+            obj, args = cmd.split('=')
+            if obj == 'pe':  # config provider edge
+                pe_nos = args.split(',')
+                group_name = f'PE{asn}'
+                push(f'group {group_name} internal')
+                push(f'peer {group_name} connect-interface loopback 1')
+                for pe_no in pe_nos:
+                    pe_name = f'rtpe{pe_no}'
+                    pe_id = parse_id(pe_name)
+                    push(f'peer {pe_id} as-number {bgp_no}')
+                    push(f'peer {pe_id} group {group_name}')
+                push('ipv4-family unicast')
+                push('undo synchronization')
+                push(f'peer {group_name} enable')
+                push(f'peer {group_name} route-policy rr export')
+                push(f'peer {group_name} reflect-client')
+                push(f'peer {group_name} label-route-capability')
+                push(f'peer {group_name} advertise-community')
+                for pe_no in pe_nos:
+                    pe_name = f'rtpe{pe_no}'
+                    pe_id = parse_id(pe_name)
+                    push(f'peer {pe_id} enable')
+                    push(f'peer {pe_id} group {group_name}')
+                push('quit')
+            elif obj == 'br':  # config direct-connected asbr
+                br_nos = args.split(',')
+                group_name = f'ASBR{asn}'
+                push(f'group {group_name} internal')
+                push(f'peer {group_name} connect-interface loopback 1')
+                for br_no in br_nos:
+                    br_name = f'rtbr{br_no}'
+                    br_id = parse_id(br_name)
+                    push(f'peer {br_id} as-number {bgp_no}')
+                    push(f'peer {br_id} group {group_name}')
+                push('ipv4-family unicast')
+                push('undo synchronization')
+                push(f'peer {group_name} enable')
+                push(f'peer {group_name} label-route-capability')
+                for br_no in br_nos:
+                    br_name = f'rtbr{br_no}'
+                    br_name = parse_id(br_name)
+                    push(f'peer {br_name} enable')
+                    push(f'peer {br_name} group {group_name}')
+                push('quit')
+            elif obj == 'ex':  # config external route reflector
+                as_rrs = args.split(':')
+                for as_rr in as_rrs:
+                    pattern = re.match(r'(\d+)\{([\w,]+)\}', as_rr)
+                    ex_asno = pattern.group(1)
+                    ex_rrs = pattern.group(2).split(',')
+                    group_name = f'EXRR{ex_asno}'
+                    push(f'group {group_name} external')
+                    push(f'peer {group_name} as-number {ex_asno}00')
+                    push(f'peer {group_name} connect-interface loopback 1')
+                    push(f'peer {group_name} ebgp-max-hop 255')
+                    for ex_rr in ex_rrs:
+                        rr_id = parse_id_or_cidr(ex_rr, asno=ex_asno)
+                        push(f'peer {rr_id} group {group_name}')
+                        push(f'peer {rr_id} as-number {ex_asno}00')
+                    push('ipv4-family unicast')
+                    push('undo synchronization')
+                    push(f'peer {group_name} enable')
+                    push(f'peer {group_name} next-hop-invariable')
+                    for ex_rr in ex_rrs:
+                        rr_id = parse_id_or_cidr(ex_rr, asno=ex_asno)
+                        push(f'peer {rr_id} enable')
+                        push(f'peer {rr_id} group {group_name}')
+                    push('quit')
+            else:
+                raise ValueError(obj, args)
+        push('quit')
+
+
+def bgp_rtrr_done(nos):
+    for no in nos.split(','):
+        cdev_rtrr(no)
+        push('quit', 'reset bgp all', 'sys')
+
+
+def bgp_rtbr(nos, *cmds):
+    bgp_no = f'{asn * 100}'
+    for no in nos.split(','):
+        cdev_rtbr(no)
+        bgp_peers.add(f'rtbr{no}')
+        push(f'bgp {bgp_no}')
+        for cmd in cmds:
+            obj, args = cmd.split('=')
+            if obj == 'rr':
+                rrs = args.split(',')
+                group_name = f'RR{asn}'
+                push(f'group {group_name} internal')
+                push(f'peer {group_name} connect-interface loopback 1')
+                for rr in rrs:
+                    rr_id = parse_id(f'rtrr{rr}')
+                    push(f'peer {rr_id} as-number {bgp_no}')
+                    push(f'peer {rr_id} group {group_name}')
+                push('ipv4-family unicast')
+                push('undo synchronization')
+                push(f'peer {group_name} enable')
+                push(f'peer {group_name} route-policy rr export')
+                push(f'peer {group_name} next-hop-local')
+                push(f'peer {group_name} label-route-capability')
+                for rr in rrs:
+                    rr_id = parse_id(f'rtrr{rr}')
+                    push(f'peer {rr_id} enable')
+                    push(f'peer {rr_id} group {group_name}')
+                push('quit')
+            elif obj == 'ex':
+                as_brs = args.split(':')
+                for as_br in as_brs:
+                    pattern = re.match(r'(\d+)\{([\w@\.,]+)\}', as_br)
+                    ex_asno = pattern.group(1)
+                    ex_brs = pattern.group(2).split(',')
+                    group_name = f'EXBR{ex_asno}'
+                    push(f'group {group_name} external')
+                    push(f'peer {group_name} as-number {ex_asno}00')
+                    for ex_br in ex_brs:
+                        br_id = parse_id_or_cidr(ex_br, asno=ex_asno)
+                        push(f'peer {br_id} as-number {ex_asno}00')
+                        push(f'peer {br_id} group {group_name}')
+                    push('ipv4-family unicast')
+                    push('undo synchronization')
+                    push(f'peer {group_name} enable')
+                    push(f'peer {group_name} route-policy asbr export')
+                    push(f'peer {group_name} label-route-capability')
+                    for ex_br in ex_brs:
+                        br_id = parse_id_or_cidr(ex_br, asno=ex_asno)
+                        push(f'peer {br_id} enable')
+                        push(f'peer {br_id} group {group_name}')
+                    push('quit')
+            else:
+                raise ValueError(obj, args)
+        push('quit')
+        push(
+            'undo route-policy rr node 10',
+            'route-policy rr permit node 10',
+            'if-match mpls-label',
+            'apply mpls-label',
+            'quit',
+        )
+
+
+def bgp_rtbr_done(nos):
+    bgp_no = f'{asn * 100}'
+    for no in nos.split(','):
+        cdev_rtbr(no)
+        push(f'bgp {bgp_no}')
+        push('ipv4-family unicast')
+        for peer in bgp_peers:
+            n = parse_id(peer)
+            push(f'network {n} 255.255.255.255')
+        push('quit', 'quit')
+        push('undo acl number 2000', 'acl number 2000')
+        for (i, peer) in enumerate(bgp_peers):
+            n = parse_id(peer)
+            push(f'rule {i} permit source {n} 0')
+        push('quit')
+        push(
+            'undo route-policy asbr node 10',
+            'route-policy asbr permit node 10',
+            'if-match acl 2000',
+            'apply mpls-label',
+            'quit',
+        )
+        push('quit', 'reset bgp all', 'sys')
+
+
+def bgp_rtpe(nos, *cmds):
+    bgp_no = f'{asn * 100}'
+    for no in nos.split(','):
+        cdev_rtpe(no)
+        bgp_peers.add(f'rtpe{no}')
+        push(f'bgp {bgp_no}')
+        for cmd in cmds:
+            obj, args = cmd.split('=')
+            if obj == 'rr':
+                rrs = args.split(',')
+                group_name = f'RR{asn}'
+                push(f'group {group_name} internal')
+                push(f'peer {group_name} connect-interface loopback 1')
+                for rr in rrs:
+                    rr_id = parse_id(f'rtrr{rr}')
+                    push(f'peer {rr_id} as-number {bgp_no}')
+                    push(f'peer {rr_id} group {group_name}')
+                push('ipv4-family unicast')
+                push('undo synchronization')
+                push(f'peer {group_name} enable')
+                push(f'peer {group_name} label-route-capability')
+                for rr in rrs:
+                    rr_id = parse_id(f'rtrr{rr}')
+                    push(f'peer {rr_id} enable')
+                    push(f'peer {rr_id} group {group_name}')
+                push('quit')
+            else:
+                raise ValueError(obj, args)
+        push('quit')
+
+
+def bgp_rtpe_done(nos):
+    for no in nos.split(','):
+        cdev_rtpe(no)
+        push('quit', 'reset bgp all', 'sys')
 
 
 def dump(write_file=True):
