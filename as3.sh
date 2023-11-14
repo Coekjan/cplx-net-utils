@@ -91,3 +91,10 @@ vpn-rtpe 1 3 300:3 import=300:3,400:3 export=300:3
 vpn-rtpe-bgp 1 3 172.23.15.2
 vpn-rtpe-bind 1 3 g6/0/0
 vpn-lsce-bgp 2 3 172.23.15.1 172.23.3.0/24
+
+## vpn 5
+
+vpn-rtrr 1,2 5 300:5 import=300:1,300:2,400:1,400:2 export=300:5
+vpn-rtrr-bgp 1 5 172.25.15.2
+vpn-rtrr-bind 1 5 g6/0/0
+vpn-lsce-bgp 1 5 172.25.15.1 172.25.3.0/24
