@@ -23,6 +23,7 @@ telnet_port = None
 dev_open_mode = 'w'
 asn = 1
 is_rt = False
+port_cidr = dict()
 dev_addrs = set()
 
 dev_ctxs = {}
@@ -51,6 +52,10 @@ def parse_id(dev_name, /, asno=None) -> str:
         return f'{asno}.1.0.{sub_id}'
 
 
+def parse_vpn_bgp_no(vpnno) -> str:
+    return f'{asn * 10000 + int(vpnno) * 100}'
+
+
 def parse_cidr(cidr: str) -> str:
     return cidr.replace('@', mypre)
 
@@ -71,13 +76,14 @@ def push(*args):
 
 
 def cdev(name, port=None):
-    global dev_name, telnet_port, ospf_depth, is_rt, dev_open_mode, dev_nets, dev_addrs, buf
+    global dev_name, telnet_port, ospf_depth, port_cidr, is_rt, dev_open_mode, dev_nets, dev_addrs, buf
     if dev_name:
         dev_ctxs[dev_name] = {
             'dev_nets': dev_nets,
             'dev_addrs': dev_addrs,
             'buf': buf,
             'port': telnet_port,
+            'port_cidr': port_cidr,
         }
 
     dev_name = name
@@ -93,6 +99,7 @@ def cdev(name, port=None):
         dev_nets = []
         dev_addrs = set()
         telnet_port = port
+        port_cidr = dict()
         buf = []
         push('   sys', 'sysn ' + name)
     else:
@@ -100,6 +107,7 @@ def cdev(name, port=None):
         dev_nets = ctx['dev_nets']
         dev_addrs = ctx['dev_addrs']
         buf = ctx['buf']
+        port_cidr = ctx['port_cidr']
         telnet_port = ctx['port']
 
 
@@ -153,6 +161,9 @@ def ints(*cidrs):
         dev_addrs.add(ip)
         push(f'ip addr {ip} {n.prefixlen}')
         push('quit')
+
+        for port in ports:
+            port_cidr[port] = cidr
 
         vlan_id += 1
 
@@ -306,6 +317,16 @@ def bgp_rtrr(nos, *cmds):
                     push(f'peer {pe_id} enable')
                     push(f'peer {pe_id} group {group_name}')
                 push('quit')
+                push('ipv4-family vpnv4')
+                push('policy vpn-target')
+                push(f'peer {group_name} enable')
+                push(f'peer {group_name} reflect-client')
+                for pe_no in pe_nos:
+                    pe_name = f'rtpe{pe_no}'
+                    pe_id = parse_id(pe_name)
+                    push(f'peer {pe_id} enable')
+                    push(f'peer {pe_id} group {group_name}')
+                push('quit')
             elif obj == 'br':  # config direct-connected asbr
                 br_nos = args.split(',')
                 group_name = f'ASBR{asn}'
@@ -343,6 +364,15 @@ def bgp_rtrr(nos, *cmds):
                         push(f'peer {rr_id} as-number {ex_asno}00')
                     push('ipv4-family unicast')
                     push('undo synchronization')
+                    push(f'peer {group_name} enable')
+                    push(f'peer {group_name} next-hop-invariable')
+                    for ex_rr in ex_rrs:
+                        rr_id = parse_id_or_cidr(ex_rr, asno=ex_asno)
+                        push(f'peer {rr_id} enable')
+                        push(f'peer {rr_id} group {group_name}')
+                    push('quit')
+                    push('ipv4-family vpnv4')
+                    push('policy vpn-target')
                     push(f'peer {group_name} enable')
                     push(f'peer {group_name} next-hop-invariable')
                     for ex_rr in ex_rrs:
@@ -475,6 +505,13 @@ def bgp_rtpe(nos, *cmds):
                     push(f'peer {rr_id} enable')
                     push(f'peer {rr_id} group {group_name}')
                 push('quit')
+                push('ipv4-family vpnv4')
+                push('policy vpn-target')
+                push(f'peer {group_name} enable')
+                for rr in rrs:
+                    rr_id = parse_id(f'rtrr{rr}')
+                    push(f'peer {rr_id} enable')
+                    push(f'peer {rr_id} group {group_name}')
             else:
                 raise ValueError(obj, args)
         push('quit')
@@ -486,13 +523,88 @@ def bgp_rtpe_done(nos):
         push('quit', 'reset bgp all', 'sys')
 
 
+def vpn_rtrr(nos, vpnno, rd, *cmds):
+    for no in nos.split(','):
+        cdev_rtrr(no)
+        vpn_inst(vpnno, rd, *cmds)
+
+
+def vpn_rtpe(nos, vpnno, rd, *cmds):
+    for no in nos.split(','):
+        cdev_rtpe(no)
+        vpn_inst(vpnno, rd, *cmds)
+
+
+def vpn_inst(vpnno, rd, *cmds):
+    rd_imports = tuple(filter(
+        lambda cmd: cmd.split('=')[0] == 'import',
+        cmds
+    ))[0].split('=')[1].split(',')
+    rd_exports = tuple(filter(
+        lambda cmd: cmd.split('=')[0] == 'export',
+        cmds
+    ))[0].split('=')[1].split(',')
+
+    push(f'undo ip vpn-instance vpn{vpnno}')
+    push(f'ip vpn-instance vpn{vpnno}')
+    push(f'route-distinguisher {rd}')
+    for imp in rd_imports:
+        push(f'vpn-target {imp} import')
+    for exp in rd_exports:
+        push(f'vpn-target {exp} export')
+    push('quit', 'quit') 
+
+
+def vpn_rtpe_bgp(no, vpnno, peer):
+    bgp_no = f'{asn * 100}'
+    cdev_rtpe(no)
+    push(f'bgp {bgp_no}')
+    push(f'ipv4-family vpn-instance vpn{vpnno}')
+    push('import direct')
+    ex_asno = parse_vpn_bgp_no(vpnno)
+    group_name = f'EXVPN{ex_asno}'
+    push(f'group {group_name} external')
+    push(f'peer {group_name} as-number {ex_asno}')
+    push(f'peer {peer} as-number {ex_asno}')
+    push(f'peer {peer} group {group_name}')
+    push('quit', 'quit')
+
+
+def vpn_rtpe_bind(nos, vpnno, interface):
+    for no in nos.split(','):
+        cdev_rtpe(no)
+        push(f'inter {interface}')
+        push(f'ip binding vpn-instance vpn{vpnno}')
+        cidr = port_cidr[interface]
+        n = parse_net(cidr)
+        ip = cidr.split('/')[0]
+        push(f'ip addr {ip} {n.netmask}')
+        push('quit')
+
+
+def vpn_lsce_bgp(no, vpnno, peer, *nets):
+    bgp_no = parse_vpn_bgp_no(vpnno)
+    cdev_lsce(no)
+    push(f'bgp {bgp_no}')
+    for net in nets:
+        net = ip_network(net)
+        push(f'network {net.network_address} {net.netmask}')
+    push(f'peer {peer} as-number {asn * 100}')
+    push('quit')
+
+
 def dump(write_file=True):
     s = '\n'.join(buf) + '\n'
     if write_file:
         with open(f'cfgs/as{asn}/{dev_name}.in', 'w', encoding='utf-8') as fp:
             fp.write(s)
+    telnet_buf = []
+    for line in buf:
+        telnet_buf.append(line)
+        if line.startswith('undo ip vpn-instance'):
+            telnet_buf.append(None)
     buf.clear()
-    return s
+    return telnet_buf
 
 
 extern_dev = set()
@@ -508,15 +620,20 @@ def subm(pool, write_file=True):
             return
         t = Telnet('127.0.0.1', port)
         print(f'writing to {name} ({t.host}:{port})')
-        t.write(b'\n' * 10 + s.encode('utf-8'))
+        t.write(b'\n' * 10)
+        for line in s:
+            if line is None:
+                time.sleep(40)
+                continue
+            t.write((line + '\n').encode('utf-8'))
         # print(t.read_eager())
-        t.write(b'subm' * 3)
+        t.write(b'\nsubm\n' * 10)
         ts = time.time()
-        out = t.read_until(b'subm', timeout=20)
+        out = t.read_until(b'subm', timeout=59)
         if write_file:
             with open(f'outs/as{asn}/' + name + '.out', 'wb') as fp:
                 fp.write(out)
-        if time.time() - ts >= 25:
+        if time.time() - ts >= 60:
             t.close()
             raise RuntimeError(f'{name} (:{port}) timed out')
         t.write(b'\b' * 15)
