@@ -634,7 +634,7 @@ def vpn_ce_bgp(vpnno, peers, *nets):
     bgp_no = parse_vpn_bgp_no(vpnno)
     push(f'bgp {bgp_no}')
     for net in nets:
-        net = ip_network(net)
+        net = ip_network(parse_cidr(net))
         push(f'network {net.network_address} {net.netmask}')
     for peer in peers.split(','):
         push(f'peer {peer} as-number {asn * 100}')
