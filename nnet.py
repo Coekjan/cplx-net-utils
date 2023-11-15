@@ -641,16 +641,31 @@ def vpn_ce_bgp(vpnno, peers, *nets):
     push('quit')
 
 
+DELAY_CMDS = {
+    'undo bgp': (5, 1),
+    'undo ip vpn-instance': 40,
+}
+
+
 def dump(write_file=True):
     s = '\n'.join(buf) + '\n'
     if write_file:
         with open(f'cfgs/as{asn}/{dev_name}.in', 'w', encoding='utf-8') as fp:
             fp.write(s)
     telnet_buf = []
+    delay: [int, int] | None = None
     for line in buf:
         telnet_buf.append(line)
-        if line.startswith('undo ip vpn-instance'):
-            telnet_buf.append(None)
+        for k in DELAY_CMDS.keys():
+            if line.startswith(k):
+                if type(DELAY_CMDS[k]) is int:
+                    telnet_buf.append(DELAY_CMDS[k])
+                else:
+                    delay = list(DELAY_CMDS[k])
+        if delay is not None:
+            if delay[1] == 0:
+                telnet_buf.append(delay[0])
+            delay[1] -= 1
     buf.clear()
     return telnet_buf
 
@@ -670,11 +685,11 @@ def subm(pool, write_file=True):
         print(f'writing to {name} ({t.host}:{port})')
         t.write(b'\n' * 10)
         for line in s:
-            if line is None:
-                time.sleep(40)
+            if type(line) is int:
+                time.sleep(int(line))
                 t.write(('\nsys\n' * 3).encode('utf-8'))
-                continue
-            t.write((line + '\n').encode('utf-8'))
+            else:
+                t.write((line + '\n').encode('utf-8'))
         # print(t.read_eager())
         t.write(b'\nsubm\n' * 10)
         ts = time.time()
