@@ -145,13 +145,28 @@ def ints(*cidrs):
         if is_rt:
             assert len(ports) == 1
             port: str = ports[0]
-            assert not port[0].isnumeric()
+            prefer = False
+            if port[-1] == '!':
+                prefer = True
+                port = port[:-1]
             push(f'int {port}')
+            if prefer:
+                push('ospf cost 10')
+            else:
+                push('ospf cost 1000')
         else:
             push(f'vlan {vlan_id}', 'quit')
             for port in ports:
+                prefer = False
+                if port[-1] == '!':
+                    prefer = True
+                    port = port[:-1]
                 push(f'int {port}', 'port link-type access',
                      f'port default vlan {vlan_id}')
+                if prefer:
+                    push('ospf cost 10')
+                else:
+                    push('ospf cost 1000')
                 push('quit')
             push(f'inter vlan{vlan_id}')
 
@@ -459,6 +474,13 @@ def bgp_rtbr(nos, *cmds):
                         push(f'peer {br_id} enable')
                         push(f'peer {br_id} group {group_name}')
                     push('quit')
+            elif obj == 'prefer':
+                if args == 'true':
+                    push('default med 20')
+                    push('default local-preference 400')
+                else:
+                    push('default med 40')
+                    push('default local-preference 200')
             else:
                 raise ValueError(obj, args)
         push('quit')
