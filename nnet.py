@@ -274,7 +274,9 @@ def ospf(*cidrs):
         if cidr.startswith('^'):
             nets = [n for n in nets if not n.subnet_of(ip_network(cidr[1:]))]
 
-    push('ospf 1', 'area 0')
+    push('ospf 1')
+    push('import-route bgp')
+    push('area 0')
 
     for n in nets:
         n: ipaddress.IPv4Network
