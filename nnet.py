@@ -22,6 +22,8 @@ mypre = '186'
 telnet_port = None
 dev_open_mode = 'w'
 asn = 1
+vpn_no = 0
+vpn_name = ''
 is_rt = False
 port_cidr = dict()
 dev_addrs = set()
@@ -52,8 +54,8 @@ def parse_id(dev_name, /, asno=None) -> str:
         return f'{asno}.1.0.{sub_id}'
 
 
-def parse_vpn_bgp_no(vpnno) -> str:
-    return f'{asn * 10000 + int(vpnno) * 100}'
+def parse_vpn_bgp_no() -> str:
+    return f'{asn * 10000 + int(vpn_no) * 100}'
 
 
 def parse_cidr(cidr: str) -> str:
@@ -571,19 +573,25 @@ def bgp_rtpe_done(nos):
         push('quit', 'reset bgp all', 'sys')
 
 
-def vpn_rtrr(nos, vpnno, rd, *cmds):
+def vpn(asno, vpnno):
+    global vpn_no, vpn_name
+    vpn_no = vpnno
+    vpn_name = f'as{asno}-vpn{vpnno}'
+
+
+def vpn_rtrr(nos, rd, *cmds):
     for no in nos.split(','):
         cdev_rtrr(no)
-        vpn_inst(vpnno, rd, *cmds)
+        vpn_inst(rd, *cmds)
 
 
-def vpn_rtpe(nos, vpnno, rd, *cmds):
+def vpn_rtpe(nos, rd, *cmds):
     for no in nos.split(','):
         cdev_rtpe(no)
-        vpn_inst(vpnno, rd, *cmds)
+        vpn_inst(rd, *cmds)
 
 
-def vpn_inst(vpnno, rd, *cmds):
+def vpn_inst(rd, *cmds):
     rd_imports = tuple(filter(
         lambda cmd: cmd.split('=')[0] == 'import',
         cmds
@@ -593,8 +601,8 @@ def vpn_inst(vpnno, rd, *cmds):
         cmds
     ))[0].split('=')[1].split(',')
 
-    push(f'undo ip vpn-instance vpn{vpnno}')
-    push(f'ip vpn-instance vpn{vpnno}')
+    push(f'undo ip vpn-instance {vpn_name}')
+    push(f'ip vpn-instance {vpn_name}')
     push(f'route-distinguisher {rd}')
     for imp in rd_imports:
         push(f'vpn-target {imp} import')
@@ -603,36 +611,36 @@ def vpn_inst(vpnno, rd, *cmds):
     push('quit', 'quit')
 
 
-def vpn_rtpe_bgp(nos, vpnno, peer):
+def vpn_rtpe_bgp(nos, peer):
     for no in nos.split(','):
         cdev_rtpe(no)
-        vpn_bgp(vpnno, peer)
+        vpn_bgp(peer)
 
 
-def vpn_rtrr_bgp(nos, vpnno, peer):
+def vpn_rtrr_bgp(nos, peer):
     for no in nos.split(','):
         cdev_rtrr(no)
-        vpn_bgp(vpnno, peer)
+        vpn_bgp(peer)
 
 
-def vpn_rtpe_bind(nos, vpnno, interface):
+def vpn_rtpe_bind(nos, interface):
     for no in nos.split(','):
         cdev_rtpe(no)
-        vpn_bind(vpnno, interface)
+        vpn_bind(interface)
 
 
-def vpn_rtrr_bind(nos, vpnno, interface):
+def vpn_rtrr_bind(nos, interface):
     for no in nos.split(','):
         cdev_rtrr(no)
-        vpn_bind(vpnno, interface)
+        vpn_bind(interface)
 
 
-def vpn_bgp(vpnno, peer):
+def vpn_bgp(peer):
     bgp_no = f'{asn * 100}'
     push(f'bgp {bgp_no}')
-    push(f'ipv4-family vpn-instance vpn{vpnno}')
+    push(f'ipv4-family vpn-instance {vpn_name}')
     push('import direct')
-    ex_asno = parse_vpn_bgp_no(vpnno)
+    ex_asno = parse_vpn_bgp_no()
     group_name = f'EXVPN{ex_asno}'
     push(f'group {group_name} external')
     push(f'peer {group_name} as-number {ex_asno}')
@@ -641,9 +649,9 @@ def vpn_bgp(vpnno, peer):
     push('quit', 'quit')
 
 
-def vpn_bind(vpnno, interface):
+def vpn_bind(interface):
     push(f'inter {interface}')
-    push(f'ip binding vpn-instance vpn{vpnno}')
+    push(f'ip binding vpn-instance {vpn_name}')
     cidr = port_cidr[interface]
     n = parse_net(cidr)
     ip = cidr.split('/')[0]
@@ -651,18 +659,18 @@ def vpn_bind(vpnno, interface):
     push('quit')
 
 
-def vpn_rtce_bgp(no, vpnno, peers, *nets):
+def vpn_rtce_bgp(no, peers, *nets):
     cdev_rtce(no)
-    vpn_ce_bgp(vpnno, peers, *nets)
+    vpn_ce_bgp(peers, *nets)
 
 
-def vpn_lsce_bgp(no, vpnno, peers, *nets):
+def vpn_lsce_bgp(no, peers, *nets):
     cdev_lsce(no)
-    vpn_ce_bgp(vpnno, peers, *nets)
+    vpn_ce_bgp(peers, *nets)
 
 
-def vpn_ce_bgp(vpnno, peers, *nets):
-    bgp_no = parse_vpn_bgp_no(vpnno)
+def vpn_ce_bgp(peers, *nets):
+    bgp_no = parse_vpn_bgp_no()
     push(f'bgp {bgp_no}')
     for net in nets:
         net = ip_network(parse_cidr(net))
