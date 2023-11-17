@@ -50,11 +50,11 @@ mpls-rtpe 1,2,3,4 g0/0/0 g0/0/1
 
 # bgp
 
-bgp-rtrr 1,2 pe=1,2,3,4 br=1,2 ex=1{rtrr1,rtrr2}
+bgp-rtrr 1,2 pe=1,2,3,4 br=1,2 ex=2{rtrr1,rtrr2}
 
 bgp-rtbr 1,2 rr=1,2
-bgp-rtbr 1 ex=1{@.0.0.233} prefer=false
-bgp-rtbr 2 ex=1{@.0.0.231} prefer=true
+bgp-rtbr 1 ex=2{@.0.0.233} prefer=false
+bgp-rtbr 2 ex=2{@.0.0.231} prefer=true
 # bgp-rtbr 3 ex=1{@.0.0.237}
 
 bgp-rtpe 1,2,3,4 rr=1,2
@@ -97,5 +97,5 @@ vpn-lsce-bgp 2 3 172.23.31.1 172.23.@.0/28
 
 vpn-rtrr 1,2 4 400:4 import=400:1,400:2 export=400:4
 vpn-rtrr-bgp 1 4 172.24.15.2
-vpn-rtrr-bind 1 4 g0/0/2
+vpn-rtrr-bind 1 4 g4/0/3
 vpn-lsce-bgp 1 4 172.24.15.1 172.24.@.0/28
