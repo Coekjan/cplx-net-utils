@@ -417,6 +417,13 @@ def bgp_rtrr(nos, *cmds):
             else:
                 raise ValueError(obj, args)
         push('quit')
+        push(
+            'undo route-policy rr node 10',
+            'route-policy rr permit node 10',
+            'if-match mpls-label',
+            'apply mpls-label',
+            'quit',
+        )
 
 
 def bgp_rtrr_done(nos):
