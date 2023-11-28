@@ -32,7 +32,7 @@ ospf-rtbr 1,2,3,4,5 ^@.0.0.0/16
 
 mpls-rtrr 1,2 g0/0/1 g4/0/1 g4/0/2 g4/0/3
 mpls-rtbr 1,2  # todo
-mpls-rtbr 3,4,5 g4/0/0 g4/0/1
+mpls-rtbr 3,4,5 g0/0/0 g4/0/0 g4/0/1
 
 # bgp
 

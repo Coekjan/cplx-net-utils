@@ -45,7 +45,7 @@ ospf-rtpe 1,2,3,4 ^172.0.0.0/8
 # mpls
 
 mpls-rtrr 1,2 g0/0/0 g0/0/1 g0/0/2 g4/0/0 g4/0/1
-mpls-rtbr 1,2 g0/0/1 g0/0/2
+mpls-rtbr 1,2 g0/0/0 g0/0/1 g0/0/2
 mpls-rtpe 1,2,3,4 g0/0/0 g0/0/1
 
 # bgp
