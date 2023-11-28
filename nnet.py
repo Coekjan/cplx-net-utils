@@ -735,6 +735,7 @@ def subm(pool, write_file=True):
         # print(out.decode('utf-8', errors='ignore'))
         t.close()
         done_vis.add(name)
+        print(f'{name} (:{port}) done')
 
     return pool.submit(worker, dump(write_file), dev_name, telnet_port)
 
