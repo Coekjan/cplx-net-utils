@@ -176,6 +176,7 @@ def ints(*cidrs):
         dev_nets.append(n)
         ip = cidr.split('/')[0]
         dev_addrs.add(ip)
+        push('undo ip addr')
         push(f'ip addr {ip} {n.prefixlen}')
         push('quit')
 
@@ -185,7 +186,7 @@ def ints(*cidrs):
         vlan_id += 1
 
     id = parse_id(dev_name)
-    push('int loopback 1', f'ip addr {id} 32', 'quit')
+    push('int loopback 1', 'undo ip addr', f'ip addr {id} 32', 'quit')
 
 
 def asno(no):
