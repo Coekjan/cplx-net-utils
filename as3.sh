@@ -64,37 +64,51 @@ bgp-rtpe-done 1,2,3,4
 
 # vpn
 
-## vpn 1
+vpn 1 6
+vpn-rtrr 1,2 100:6 import=300:1,300:2,400:1,400:2,200:7 export=100:6
 
-vpn-rtrr 1,2 1 300:1 import=300:1,300:5,400:1,100:6,200:7 export=300:1
-vpn-rtpe 1,2 1 300:1 import=300:1,300:5,400:1,100:6,200:7 export=300:1
-vpn-rtpe-bgp 1 1 172.21.15.3
-vpn-rtpe-bgp 2 1 172.21.15.4
-vpn-rtpe-bind 1,2 1 g6/0/1
-vpn-lsce-bgp 3 1 172.21.15.1 172.21.@.0/29
-vpn-lsce-bgp 4 1 172.21.15.2 172.21.@.0/29
+vpn 2 7
+vpn-rtrr 1,2 200:7 import=300:1,300:2,400:1,400:2,100:6 export=200:7
 
-## vpn 2
+vpn 3 1
+vpn-rtrr 1,2 300:1 import=300:1,300:5,400:1,100:6,200:7 export=300:1
+vpn-rtpe 1,2 300:1 import=300:1,300:5,400:1,100:6,200:7 export=300:1
+vpn-rtpe-bgp 1 172.21.15.3
+vpn-rtpe-bgp 2 172.21.15.4
+vpn-rtpe-bind 1,2 g6/0/1
+vpn-lsce-bgp 3 172.21.15.1 172.21.@.0/29
+vpn-lsce-bgp 4 172.21.15.2 172.21.@.0/29
 
-vpn-rtrr 1,2 2 300:2 import=300:2,300:5,400:2,100:6,200:7 export=300:2 
-vpn-rtpe 3,4 2 300:2 import=300:2,300:5,400:2,100:6,200:7 export=300:2
-vpn-rtpe-bgp 3 2 172.22.15.3
-vpn-rtpe-bgp 4 2 172.22.15.4
-vpn-rtpe-bind 3,4 2 g6/0/1
-vpn-lsce-bgp 5 2 172.22.15.1 172.22.@.0/29
-vpn-lsce-bgp 6 2 172.22.15.2 172.22.@.0/29
+vpn 3 2
+vpn-rtrr 1,2 300:2 import=300:2,300:5,400:2,100:6,200:7 export=300:2 
+vpn-rtpe 3,4 300:2 import=300:2,300:5,400:2,100:6,200:7 export=300:2
+vpn-rtpe-bgp 3 172.22.15.3
+vpn-rtpe-bgp 4 172.22.15.4
+vpn-rtpe-bind 3,4 g6/0/1
+vpn-lsce-bgp 5 172.22.15.1 172.22.@.0/29
+vpn-lsce-bgp 6 172.22.15.2 172.22.@.0/29
 
-## vpn 3
+vpn 3 3
+vpn-rtrr 1,2 300:3 import=300:3,400:3 export=300:3
+vpn-rtpe 4 300:3 import=300:3,400:3 export=300:3
+vpn-rtpe-bgp 4 172.23.15.2
+vpn-rtpe-bind 4 g6/0/0
+vpn-lsce-bgp 2 172.23.15.1 172.23.@.0/28
 
-vpn-rtrr 1,2 3 300:3 import=300:3,400:3 export=300:3
-vpn-rtpe 4 3 300:3 import=300:3,400:3 export=300:3
-vpn-rtpe-bgp 4 3 172.23.15.2
-vpn-rtpe-bind 4 3 g6/0/0
-vpn-lsce-bgp 2 3 172.23.15.1 172.23.@.0/28
+vpn 3 5
+vpn-rtrr 1,2 300:5 import=300:1,300:2,400:1,400:2 export=300:5
+vpn-rtrr-bgp 1 172.25.15.2
+vpn-rtrr-bind 1 g6/0/0
+vpn-lsce-bgp 1 172.25.15.1 172.25.@.0/28
 
-## vpn 5
+vpn 4 1
+vpn-rtrr 1,2 400:1 import=300:1,300:5,400:1,100:6,200:7 export=400:1
 
-vpn-rtrr 1,2 5 300:5 import=300:1,300:2,400:1,400:2 export=300:5
-vpn-rtrr-bgp 1 5 172.25.15.2
-vpn-rtrr-bind 1 5 g6/0/0
-vpn-lsce-bgp 1 5 172.25.15.1 172.25.@.0/28
+vpn 4 2
+vpn-rtrr 1,2 400:2 import=300:2,300:5,400:2,100:6,200:7 export=400:2
+
+vpn 4 3
+vpn-rtrr 1,2 400:3 import=300:3,400:3 export=400:3
+
+vpn 4 4
+vpn-rtrr 1,2 400:4 import=300:1,300:2,400:1,400:2 export=400:4
