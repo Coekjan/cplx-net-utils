@@ -49,7 +49,7 @@ mpls-rtpe 1,2,3,4 g0/0/0 g0/0/1
 
 # bgp
 
-bgp-rtrr 1,2 pe=1,2,3,4 br=1,2 ex=2{rtrr1,rtrr2}
+bgp-rtrr 1,2 pe=1,2,3,4 br=1,2 ex=1{rtrr1,rtrr2}:2{rtrr1,rtrr2}:3{rtrr1,rtrr2}
 
 bgp-rtbr 1,2 rr=1,2
 bgp-rtbr 1 ex=2{@.0.0.233} prefer=false

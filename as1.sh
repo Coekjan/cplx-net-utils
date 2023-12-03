@@ -36,7 +36,7 @@ mpls-rtbr 3,4,5 g0/0/0 g4/0/0 g4/0/1
 
 # bgp
 
-bgp-rtrr 1,2 br=1,2,3,4,5 ex=2{rtrr1,rtrr2}:3{rtrr1,rtrr2}
+bgp-rtrr 1,2 br=1,2,3,4,5 ex=2{rtrr1,rtrr2}:3{rtrr1,rtrr2}:4{rtrr1,rtrr2}
 
 bgp-rtbr 1,2,3,4,5 rr=1,2
 bgp-rtbr 1 ex=2{@.0.0.254} prefer=false
