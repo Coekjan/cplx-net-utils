@@ -11,6 +11,7 @@ from pysh import main
 
 SKIP_SUBMIT = 0
 SAVE_ALL = 1
+DELAY = True
 
 
 buf = []
@@ -720,7 +721,8 @@ def subm(pool, write_file=True):
         t.write(b'\n' * 10)
         for line in s:
             if type(line) is int:
-                time.sleep(int(line))
+                if DELAY:
+                    time.sleep(int(line))
                 t.write(('\nsys\n' * 3).encode('utf-8'))
             else:
                 t.write((line + '\n').encode('utf-8'))
@@ -768,7 +770,10 @@ if __name__ == '__main__':
                         buf.clear()
                         push('   sys', 'q', 'reset saved', 'y')
                     else:
-                        push('   sys', 'q', 'save', 'y')
+                        if is_rt:
+                            push('   sys', 'q', 'save', 'y')
+                        else:
+                            push('   sys', 'q', 'save', 'Y', '', 'Y')
                 futs.append(subm(pool))
             for fut in futs:
                 fut.result()
