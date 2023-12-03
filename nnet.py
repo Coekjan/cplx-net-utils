@@ -376,6 +376,7 @@ def bgp_rtrr(nos, *cmds):
                 push('ipv4-family unicast')
                 push('undo synchronization')
                 push(f'peer {group_name} enable')
+                push(f'peer {group_name} reflect-client')
                 push(f'peer {group_name} label-route-capability')
                 for br_no in br_nos:
                     br_name = f'rtbr{br_no}'
