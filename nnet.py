@@ -515,15 +515,9 @@ def bgp_rtbr_done(nos):
             n = parse_id(peer)
             push(f'network {n} 255.255.255.255')
         push('quit', 'quit')
-        push('undo acl number 2000', 'acl number 2000')
-        for (i, peer) in enumerate(bgp_peers):
-            n = parse_id(peer)
-            push(f'rule {i} permit source {n} 0')
-        push('quit')
         push(
             'undo route-policy asbr node 10',
             'route-policy asbr permit node 10',
-            'if-match acl 2000',
             'apply mpls-label',
             'quit',
         )
